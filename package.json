@@ -1,0 +1,1 @@
+{"name":"research-skill-offline-candidate","version":"0.1.0","private":true,"type":"module","files":["SKILL.md","README.md","references","scripts","runtime"],"engines":{"node":">=26 <27"}}
