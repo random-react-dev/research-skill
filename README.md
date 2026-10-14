@@ -12,12 +12,12 @@ Install the published client:
 
     npx skills add random-react-dev/research-skill --skill research-skill --agent codex --agent claude-code
 
-The client repository is published; new public service admission remains disabled
-except during explicitly approved, finite qualification. Publishing the files does
-not activate a funded service or establish live research readiness. The skill
-uses SKILL.md and bundled scripts/runtime, with no npm publication/bin, install
-hook, agent CLI download, daemon or new launch interface. The existing private
-package.json is bundle metadata, not an npm distribution plan.
+The client repository is published. A bounded, operator-funded public pilot was
+active as of 2026-10-14 03:25 UTC; availability remains subject to its finite
+allowances. Publishing the files alone does not establish broad live research
+readiness. The skill uses SKILL.md and bundled scripts/runtime, with no npm
+publication/bin, install hook, agent CLI download, daemon or new launch interface.
+The existing private package.json is bundle metadata, not an npm distribution plan.
 
 Official skills 1.7.2 was pinned for disposable project-local tests of both
 symlink and --copy layouts targeting Codex/Claude. The installer was obtained
@@ -25,8 +25,10 @@ from its official npm package with install scripts disabled. Its local-source
 install runs had outbound Node network blocked and telemetry disabled. Only
 disposable HOME/project directories were touched. Installed modules resolve
 relative to SKILL_DIR; loopback dummy first-use tests reuse one capability.
-This validates local installation mechanics, not GitHub publication, a real
-remote clean install, native agent execution or public-service activation.
+Those historical tests validated local installation mechanics only. Subsequent
+clean remote installs from this GitHub repository passed all four combinations
+of Codex/Claude and symlink/--copy layouts on 2026-10-13. These install checks do
+not establish native research quality or broad source coverage.
 
 Sources: https://github.com/vercel-labs/skills and
 https://registry.npmjs.org/skills/1.7.2 (checked 2026-10-13).
@@ -53,9 +55,12 @@ network error, disabled service or revocation never rotates the capability or
 resets budgets. No login, account-store lookup, manual token/provider-key entry
 or alternative account is used. Installing the skill alone makes no grant.
 
-Issuance is disabled by default in this candidate. Operator-funded allowances,
-real grants/renewal/activation, deployment and publication remain separate
-approval gates. SERVICE_NOT_ACTIVATED means access is not enabled;
+The active pilot has finite lifetime ceilings of 100 model calls, 500,000 prompt
+bytes, 250,000 reserved output tokens and 100 installation grants, including
+prior usage. Grants expire after 24 hours; renewal with the same capability does
+not reset cumulative budgets. Exhausted allowances automatically deny further
+usage, without automatic charging or replenishment; this is not an invoice-cost
+guarantee. SERVICE_NOT_ACTIVATED means access is not enabled;
 SERVICE_ACCESS_DENIED means the existing access was refused;
 SERVICE_ACCESS_UNAVAILABLE means the gateway/network could not establish access.
 Never delete state or change identity to evade a denial or quota. Anonymous
@@ -93,14 +98,19 @@ legacy collector queries retain their existing behavior.
 Historical native fixtures covered macOS/Node26/Codex0.147.0/Claude2.1.294.
 Accepted client bytes passed six genuine installed native CLI fixtures using
 mocked server/provider responses. One server-only DeepSeek configuration request
-succeeded. Live public native research qualification is still pending. Production preflight still
-permits macOS/Node26 only and does not install another runtime. Claude non-Claude
-routing is a custom compatibility path outside Anthropic-supported gateways:
+succeeded. On 2026-10-13 (Codex) and 2026-10-14 (Claude), one genuine live static
+Python asyncio article case per agent returned a cited PARTIAL result with explicit
+truncation.
+This qualifies that narrow path only, not broad source coverage. Production
+preflight still permits macOS/Node26 only and does not install another runtime.
+Claude non-Claude routing is a custom compatibility path outside
+Anthropic-supported gateways:
 https://code.claude.com/docs/en/llm-gateway
 
 Cloud Node24 fixtures use synthetic CLI processes and dummy loopback services.
 Cross-language tests exercise actual Python server classes with HTTPX/collector
-fixtures and outbound Python sockets denied. All model/provider data is mocked.
+fixtures and outbound Python sockets denied. Model/provider data in these
+fixtures is mocked.
 Native protocol usage placeholders are not billing receipts; server attempts and
 usage remain authoritative, and the main agent still uses its normal tokens.
 
