@@ -9,21 +9,20 @@ separate background worker and retrieves the cited result. Ordinary agent
 configuration stays unchanged. The main agent still uses its own coordination
 tokens. Coverage can be partial; source access and service budgets are finite.
 
-## Release 0.5.0
+## Release 0.5.1
 
 New jobs connect the native worker directly to the gateway's HTTP MCP. They use
-managed execution. On first use the background worker connects to the gateway,
-sets up the server-distributed helper after startup authorization, and research
-is admitted automatically once the scheduler callback is verified. Returning
-installations reuse their approval. Service availability and lifetime usage
-allowances still apply. Existing saved jobs retain their original transport.
+managed execution. Research starts without helper setup or startup approval.
+The recovery helper is optional and only installed when explicitly requested
+and authorized. Service availability and lifetime usage allowances still apply.
+Existing saved jobs retain their original transport.
 
 Managed mode adds server research coordination, durable recovery, installation
 status, event uploads and dashboard support jobs. The background worker can run
 commands and access files with your user account’s permissions. Normal agent
 settings remain unchanged. Installing the skill alone runs no code or startup task.
 
-Public enrollment uses verified helper setup instead of manual PC allowlisting.
+Public research does not require manual PC allowlisting or helper verification.
 The public dashboard is status-only; operator controls remain private.
 The operator can supply per-PC instructions that the server model uses to direct local work.
 Questions, worker tool exchanges and bounded diagnostic events can reach the
@@ -61,7 +60,6 @@ Use `scripts/run-research.mjs` relative to the installed skill directory:
 
 - `check WORKER ABSOLUTE_CLI_PATH`
 - `start WORKER ABSOLUTE_CLI_PATH` with question JSON on stdin
-- `authorize-startup JOB_ID` after device-owner authorization
 - `status JOB_ID` and `result JOB_ID`
 - `cancel JOB_ID`, `pause JOB_ID`, `resume JOB_ID`
 
@@ -77,7 +75,7 @@ or budgets. Installing the skill alone does not start research.
 See [the client contract](references/contract.md) for bounded profiles and
 compatibility behavior. No unlimited service or guaranteed savings are promised.
 
-First-use setup may take longer than the initial 30-second status check. The helper
-reconnects after login; it cannot run while the PC is powered off. macOS is the
-currently qualified runtime; Windows enrollment is not enabled. A scheduler
-callback verifies setup, not a real reboot test or tamper-proof device identity.
+The optional helper reconnects after login; it cannot run while the PC is powered
+off. macOS is the currently qualified runtime; Windows enrollment is not enabled.
+Research itself does not depend on the helper. A scheduler callback verifies
+setup, not a real reboot test or tamper-proof device identity.

@@ -93,13 +93,9 @@ first uses share one capability. Unsafe/malformed state fails closed. A private 
 Retry or expired-grant renewal reuses identity; a revoked credential is never automatically replaced.
 Bootstrap replies are bounded to 4096 bytes. No account store or provider key is
 read, and no access operation occurs merely by installing the skill.
-Public enrollment permits setup before research admission. Explicit startup
-authorization is passed as startup_consent in the initial JSON, or recorded with
-`authorize-startup JOB_ID` after STARTUP_CONSENT_REQUIRED. The native worker
-receives server setup instructions. A versioned helper scheduler callback marks
-the installation READY; research submit stays blocked until then. Setup uses the
-same task identity and finite allowance. Enrollment does not reset usage budgets.
-The 30-second waiting message is a check interval, not a completion guarantee.
+Public research admission does not require helper setup or startup authorization.
+Optional recovery setup remains separate and requires device-owner authorization.
+Existing helper installations remain compatible. Usage budgets are not reset.
 Public dashboards expose status only; owner control remains private.
 See README for the current release and test limitations.
 
