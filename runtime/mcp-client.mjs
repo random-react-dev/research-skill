@@ -42,11 +42,12 @@ async function resolveServiceAccess(home,{endpoint=ENDPOINT,fixture=false,signal
  const temp=path.join(dir,'.grant-'+crypto.randomUUID());try{const h=await fs.open(temp,'wx',0o600);try{await h.writeFile(JSON.stringify({endpoint,token_sha256:tokenHash,...grant}));await h.sync();}finally{await h.close();}await fs.rename(temp,receiptFile);await syncDirectory(dir);}finally{await fs.rm(temp,{force:true});}
  return publicAccess(home,endpoint,token,grant.owner,fixture);
 }
-export function mcpClient({endpoint,token,resolveAccess,signal,fixture=false,onEvent=()=>{}}){
+export function mcpClient({endpoint,token,resolveAccess,signal,fixture=false,onEvent=()=>{},managed=false}){
  const u=new URL(endpoint);check(endpoint===ENDPOINT||(fixture&&u.protocol==='http:'&&u.hostname==='127.0.0.1'&&u.pathname==='/mcp'),'ENDPOINT_DENIED');
+ const tool=managed?'research_managed_request':'research_worker_request',limit=managed?270336:MAX_REQUEST;
  let id=0,session,version,initialized;
  async function rpc(method,params,notify=false){
-  const body={jsonrpc:'2.0',...(!notify?{id:++id}:{}),method,...(params?{params}:{})},wire=JSON.stringify(body);check(Buffer.byteLength(wire)<=MAX_REQUEST+1024,'REQUEST_LIMIT');
+  const body={jsonrpc:'2.0',...(!notify?{id:++id}:{}),method,...(params?{params}:{})},wire=JSON.stringify(body);check(Buffer.byteLength(wire)<=limit+1024,'REQUEST_LIMIT');
   if(resolveAccess!==undefined){check(typeof resolveAccess==='function','ACCESS_RESOLVER_INVALID');const current=await resolveAccess(signal);check(current.endpoint===endpoint&&current.token===token,'INSTALL_ACCESS_CHANGED');}
   const headers={'content-type':'application/json','accept':'application/json, text/event-stream','authorization':'Bearer '+token,...(session?{'mcp-session-id':session}:{}),...(version?{'mcp-protocol-version':version}:{})};
   const response=await fetch(endpoint,{method:'POST',redirect:'error',headers,body:wire,signal:AbortSignal.any([signal,AbortSignal.timeout(method==='tools/call'?200000:15000)])});
@@ -62,12 +63,12 @@ export function mcpClient({endpoint,token,resolveAccess,signal,fixture=false,onE
  async function init(){
   const v=await rpc('initialize',{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'research-task-client',version:'0.1.0'}});
   check(['2025-11-25','2025-06-18','2025-03-26','2024-11-05'].includes(v.protocolVersion)&&v.capabilities?.tools,'MCP_PROTOCOL_UNSUPPORTED');version=v.protocolVersion;
-  await rpc('notifications/initialized',undefined,true);const list=await rpc('tools/list');check(list.tools?.some(t=>t.name==='research_worker_request'),'WORKER_CONTRACT_UNAVAILABLE');
+  await rpc('notifications/initialized',undefined,true);const list=await rpc('tools/list');check(list.tools?.some(t=>t.name===tool),'WORKER_CONTRACT_UNAVAILABLE');
  }
  return async request=>{
-  initialized??=init();await initialized;check(Buffer.byteLength(JSON.stringify(request))<=MAX_REQUEST,'REQUEST_LIMIT');
+  initialized??=init();await initialized;check(Buffer.byteLength(JSON.stringify(request))<=limit,'REQUEST_LIMIT');
   onEvent({event:'SERVER_OPERATION',operation:request.operation,turn:request.turn});
-  const v=await rpc('tools/call',{name:'research_worker_request',arguments:{request}});
+  const v=await rpc('tools/call',{name:tool,arguments:{request}});
   check(!v.isError&&v.structuredContent&&typeof v.structuredContent==='object','MCP_TOOL_INVALID');
   check(v.structuredContent.error_code===undefined,'SERVER_REQUEST_DENIED');
   check(!v.structuredContent.operation_pending,'SERVER_OPERATION_PENDING');

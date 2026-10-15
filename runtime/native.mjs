@@ -51,3 +51,51 @@ export function respond(res,response,worker,native,stream){
  }
  event('response.output_item.done',{output_index:0,item});event('response.completed',{response:complete});res.end();
 }
+
+// v2 preserves native tool identities. The server buffers and journals a complete
+// provider response before this relay emits it; reconnects do not redispatch it.
+export function respondNative(res, response, worker, stream){
+ check(response?.model===MODEL,'NATIVE_RESPONSE_INVALID');
+ if(worker==='codex'&&response.usage){const u=response.usage;response={...response,usage:{...u,total_tokens:u.total_tokens??((u.input_tokens??0)+(u.output_tokens??0)),input_tokens_details:u.input_tokens_details??{cached_tokens:0},output_tokens_details:u.output_tokens_details??{reasoning_tokens:0}}};}
+ if(!stream){res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify(response));return;}
+ res.writeHead(200,{'content-type':'text/event-stream','cache-control':'no-store'});
+ let sequence_number=0;
+ const event=(type,fields)=>res.write(`event: ${type}\ndata: ${JSON.stringify({type,...(worker==='codex'?{sequence_number:sequence_number++}:{}),...fields})}\n\n`);
+ if(worker==='claude-code'){
+  check(Array.isArray(response.content),'NATIVE_RESPONSE_INVALID');
+  event('message_start',{message:{...response,content:[],stop_reason:null}});
+  response.content.forEach((block,index)=>{
+   check(['text','tool_use'].includes(block.type),'NATIVE_BLOCK_UNSUPPORTED');
+   event('content_block_start',{index,content_block:block.type==='text'?{type:'text',text:''}:{...block,input:{}}});
+   event('content_block_delta',{index,delta:block.type==='text'?{type:'text_delta',text:block.text}:{type:'input_json_delta',partial_json:JSON.stringify(block.input)}});
+   event('content_block_stop',{index});
+  });
+  event('message_delta',{delta:{stop_reason:response.stop_reason,stop_sequence:response.stop_sequence??null},usage:{output_tokens:response.usage?.output_tokens??0}});
+  event('message_stop',{});
+ }else{
+  check(Array.isArray(response.output),'NATIVE_RESPONSE_INVALID');
+  event('response.created',{response:{...response,status:'in_progress',output:[]}});
+  response.output.forEach((item,output_index)=>{
+   const context={item_id:item.id,output_index};
+   event('response.output_item.added',{output_index,item:{...item,status:'in_progress',...(item.type==='function_call'?{arguments:''}:item.type==='custom_tool_call'?{input:''}:item.type==='message'?{content:[]}:{})}});
+   if(item.type==='function_call'){
+    event('response.function_call_arguments.delta',{...context,delta:item.arguments});
+    event('response.function_call_arguments.done',{...context,arguments:item.arguments});
+   }else if(item.type==='custom_tool_call'){
+    event('response.custom_tool_call_input.delta',{...context,delta:item.input});
+    event('response.custom_tool_call_input.done',{...context,input:item.input});
+   }else if(item.type==='message'){
+    for(const [content_index,part] of item.content.entries()){
+     check(part.type==='output_text','NATIVE_BLOCK_UNSUPPORTED');
+     event('response.content_part.added',{...context,content_index,part:{...part,text:''}});
+     event('response.output_text.delta',{...context,content_index,delta:part.text});
+     event('response.output_text.done',{...context,content_index,text:part.text});
+     event('response.content_part.done',{...context,content_index,part});
+    }
+   }
+   event('response.output_item.done',{output_index,item});
+  });
+  event('response.completed',{response});
+ }
+ res.end();
+}

@@ -1,4 +1,17 @@
-# Client boundaries
+# Client contract
+
+The following v1 details describe the default compatibility path. The opt-in
+managed implementation is selected with RESEARCH_MANAGED_CLIENT=true. It uses
+research_managed_request, durable native profiles, autonomous server research and
+separate coordinator reservations under the same task budget. Native requests
+carry the isolated worker conversation and tools; do not send confidential
+material as a public research question. The main agent configuration is unchanged.
+The managed default profile is 24 hours, 20 model requests, 1 MiB prompt bytes,
+32 KiB report, 3072 output tokens per turn, and a 400000 microUSD estimated cost
+gate. These are requested ceilings, not a funding grant or guaranteed invoice cap.
+Server policy may deny them. Results preserve partial coverage and unknown usage.
+
+## v1 compatibility boundaries
 
 One server tool: research_worker_request(request), protocol research-worker-v1.
 The task contains protocol_version, UUIDv4 task_id, public question <=2048 UTF-8
@@ -73,8 +86,10 @@ first uses share one capability. Unsafe/malformed state fails closed. A private 
 Retry or expired-grant renewal reuses identity; a revoked credential is never automatically replaced.
 Bootstrap replies are bounded to 4096 bytes. No account store or provider key is
 read, and no access operation occurs merely by installing the skill.
-Public activation/deployment, funded ceilings, GitHub publication, clean remote
-installation and native/provider qualification of this revision remain pending.
+The limited public compatibility pilot remains active. Managed admission stays
+restricted to explicitly enabled installations. Publishing the client does not
+expand server admission, funding, platform qualification or audit coverage.
+See README for the current release and test limitations.
 
 Worker query strings have schema maxLength 2048 and a stricter runtime 2048
 UTF-8-byte limit before trimming. Trim uses the union of ECMAScript and Python whitespace, including
