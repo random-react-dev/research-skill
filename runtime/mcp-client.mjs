@@ -70,7 +70,7 @@ export function mcpClient({endpoint,token,resolveAccess,signal,fixture=false,onE
   onEvent({event:'SERVER_OPERATION',operation:request.operation,turn:request.turn});
   const v=await rpc('tools/call',{name:tool,arguments:{request}});
   check(!v.isError&&v.structuredContent&&typeof v.structuredContent==='object','MCP_TOOL_INVALID');
-  if(v.structuredContent.error_code!==undefined)throw new ResearchError(['worker_admission_disabled','coordinator_expired','coordinator_stale'].includes(v.structuredContent.error_code)?v.structuredContent.error_code.toUpperCase():'SERVER_REQUEST_DENIED');
+  if(v.structuredContent.error_code!==undefined)throw new ResearchError(['worker_admission_disabled','coordinator_expired','coordinator_stale','startup_consent_required','helper_setup_required','enrollment_expired','installation_revoked','setup_budget_exhausted','enrollment_busy'].includes(v.structuredContent.error_code)?v.structuredContent.error_code.toUpperCase():'SERVER_REQUEST_DENIED');
   check(!v.structuredContent.operation_pending,'SERVER_OPERATION_PENDING');
   return v.structuredContent;
  };

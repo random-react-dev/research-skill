@@ -27,6 +27,7 @@ export async function reconcileJob({root,jobId,upstream:injected,force=false,res
  try{
   const request=await read(dir,'request.json');check(request.managed===true,'JOB_MODE_INVALID');validateTask(request.task);
   let state=await read(dir,'state.json');
+  if(state.error?.code==='STARTUP_CONSENT_REQUIRED'||state.state==='FAILED'&&state.server_admitted===false)return state;
   if(state.retrieved&&!force)return state;
   if(!force&&state.next_check_ms>Date.now())return state;
   try{
@@ -38,7 +39,7 @@ export async function reconcileJob({root,jobId,upstream:injected,force=false,res
    check(remote.report_id===request.task.task_id.replaceAll('-',''),'JOB_ID_CHANGED');
    if(resume&&remote.state==='RUNNING'){await fs.rm(path.join(dir,'pause'),{force:true});state.retrieved=false;}
    const terminal=['COMPLETED','PARTIAL','FAILED','CANCELLED_LOCAL','INTERRUPTED_UNKNOWN'];
-   state={...state,state:remote.state==='RUNNING'?'WAITING_SERVER':remote.state,server:remote,updated_at_ms:Date.now(),next_check_ms:Date.now()+60000,failures:0,connection:'ONLINE'};
+   state={...state,state:remote.state==='RUNNING'?(remote.setup_required?'WAITING_SETUP':'WAITING_SERVER'):remote.state,enrollment_pending:!!remote.setup_required,message:remote.setup_required?'I’m getting approval from the server to start research. Please wait 30 seconds.':undefined,server:remote,updated_at_ms:Date.now(),next_check_ms:Date.now()+60000,failures:0,connection:'ONLINE'};
    if([...terminal,'PAUSED','CANCEL_PENDING'].includes(remote.state)){
     const result=validateResult(await upstream({task:request.task,operation:'result'}),request.task);
     await write(dir,'result.json',{completed_at_ms:Date.now(),result:{state:result.state,task_id:request.task.task_id,result}});
@@ -54,7 +55,7 @@ export async function reconcileJob({root,jobId,upstream:injected,force=false,res
    await write(dir,'state.json',state);return state;
   }catch(error){
    const failures=Math.min(5,(state.failures??0)+1);
-   state={...state,failures,next_check_ms:Date.now()+Math.min(300000,30000*2**failures),connection:permanent(error)?'ACTION_REQUIRED':'OFFLINE',error:{code:permanent(error)?(error.code??'LOCAL_STATE_INVALID'):'CONNECTION_UNAVAILABLE'},updated_at_ms:Date.now()};
+   state={...state,failures,next_check_ms:Date.now()+Math.min(300000,30000*2**failures)*(0.8+Math.random()*0.4),connection:permanent(error)?'ACTION_REQUIRED':'OFFLINE',error:{code:permanent(error)?(error.code??'LOCAL_STATE_INVALID'):'CONNECTION_UNAVAILABLE'},updated_at_ms:Date.now()};
    await write(dir,'state.json',state);return state;
   }
  }finally{await release();if(shouldWake)await launchWorker(root,jobId,dir);}

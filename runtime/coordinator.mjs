@@ -19,7 +19,7 @@ export function coordinatorLaunch({worker,executable,home,base,capability,mcpFil
  return {env,args:['--print','--bare','--output-format','json','--model',MODEL,'--permission-mode','bypassPermissions','--setting-sources','','--settings','{"disableAllHooks":true,"disableClaudeAiConnectors":true}','--strict-mcp-config','--mcp-config',mcpFile,'--disable-slash-commands','--no-chrome',...(session?['--resume',session]:newSession?['--session-id',newSession]:[])]};
 }
 
-export async function runCoordinator({task,worker,executable,home,upstream,signal,onEvent=()=>{},pauseRequested=()=>false,accessHome,userHome,transport,access,fixture=false}){
+export async function runCoordinator({task,worker,executable,home,upstream,signal,onEvent=()=>{},pauseRequested=()=>false,accessHome,userHome,transport,access,fixture=false,startupConsent=false}){
  check(process.platform==='darwin','RUNTIME_UNQUALIFIED');
  validateTask(task);check(path.isAbsolute(home)&&path.isAbsolute(executable),'WORKER_INVALID');
  await fs.mkdir(home,{recursive:true,mode:0o700});
@@ -33,7 +33,9 @@ export async function runCoordinator({task,worker,executable,home,upstream,signa
  check(!transport||direct,'TRANSPORT_UNSUPPORTED');
  if(direct){check(access?.endpoint&&access?.token,'MCP_ACCESS_MISSING');if(access.resolveAccess)access=await access.resolveAccess(signal);await mcpClient({...access,fixture,signal,managed:true,requiredTool:'research_task'}).discover();onEvent({event:'MCP_DISCOVERED',transport});}
  const rawUpstream=upstream,coordinator_id=crypto.randomUUID();
- const admission=await rawUpstream({task,operation:'admit'});
+ const admission=await rawUpstream({task,operation:'admit',...(startupConsent?{startup_consent:true}:{})});
+ onEvent({event:'SERVER_ADMITTED'});
+ if(admission.setup_required)onEvent({event:'ENROLLMENT_PENDING',message:'I’m getting approval from the server to start research. Please wait 30 seconds.'});
  upstream=q=>rawUpstream({...q,coordinator_id});
  await upstream({task,operation:'acquire',...(direct?{transport}:{})});
  const capability=crypto.randomBytes(24).toString('hex');let child,exit,submitted,stopping=false,requests=0,busy=false;
@@ -99,7 +101,7 @@ export async function runCoordinator({task,worker,executable,home,upstream,signa
   checkpoint.worker_pid=child.pid;checkpoint.worker_started=await processIdentity(child.pid);await save();
   signal?.addEventListener('abort',stop,{once:true});
   timer=setTimeout(stop,Math.min(300000,task.profile.execution_seconds*1000));
-  onEvent({event:'CLI_STARTED'});child.stdin.on('error',()=>{});child.stdin.end(JSON.stringify({task,runtime:{node:process.execPath,cli:fileURLToPath(new URL('../scripts/run-research.mjs',import.meta.url)),jobs_root:path.dirname(path.dirname(home)),job_id:path.basename(path.dirname(home)),user_home:userHome??accessHome??home}}));
+  onEvent({event:'CLI_STARTED'});child.stdin.on('error',()=>{});child.stdin.end(JSON.stringify({task,runtime:{node:process.execPath,cli:fileURLToPath(new URL('../scripts/run-research.mjs',import.meta.url)),jobs_root:path.dirname(path.dirname(home)),job_id:path.basename(path.dirname(home)),startup_consent:startupConsent,user_home:userHome??accessHome??home}}));
   const exitCode=await exit;
   if(direct&&!signal?.aborted){try{const remote=await upstream({task,operation:'status'});if(remote.submitted||remote.support_complete)submitted=remote;}catch(e){onEvent({event:'STATUS_UNCONFIRMED',code:e.code??'MCP_CONNECTION_FAILED'});}}
   onEvent({event:'CLI_EXIT',exit_code:exitCode,output:stdout.slice(-8000),stderr});
@@ -107,7 +109,7 @@ export async function runCoordinator({task,worker,executable,home,upstream,signa
   if(submitted&&newSession)session=newSession;
   checkpoint.worker_pid=null;checkpoint.worker_started=null;if(session)checkpoint.session=session;checkpoint.clean_exit=exitCode===0&&!checkpoint.pending_calls?.length&&!signal?.aborted;await save();
   if(checkpoint.clean_exit)await upstream({task,operation:'release'});
-  return {state:checkpoint.clean_exit&&submitted?(submitted.support_complete?'PARTIAL':'WAITING_SERVER'):'INTERRUPTED_UNKNOWN',task_id:task.task_id,worker,...(submitted?{server:submitted}:{error:{code:'COORDINATOR_HANDOFF_UNCONFIRMED'}})};
+  return {state:checkpoint.clean_exit&&submitted?(submitted.support_complete?'PARTIAL':'WAITING_SERVER'):checkpoint.clean_exit&&admission.setup_required?'WAITING_SETUP':'INTERRUPTED_UNKNOWN',task_id:task.task_id,worker,...(submitted?{server:submitted}:{error:{code:'COORDINATOR_HANDOFF_UNCONFIRMED'}})};
  }finally{
   await saving.catch(()=>{});clearTimeout(timer);signal?.removeEventListener('abort',stop);stop();
   if(exit)await exit;clearTimeout(forceTimer);

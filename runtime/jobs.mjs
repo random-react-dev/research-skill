@@ -13,7 +13,7 @@ export async function write(dir,name,value){const body=JSON.stringify(value);che
 export const read=async(dir,name,max=16*1024*1024)=>JSON.parse(await readPrivate(path.join(dir,name),max));
 export async function status({root,jobId}){
  const dir=await directory(root,jobId),s=await read(dir,'state.json',16384);
- check(s.job_id===jobId&&['STARTING','RUNNING','WAITING_SERVER',...terminal].includes(s.state),'JOB_STATE_INVALID');
+ check(s.job_id===jobId&&['STARTING','RUNNING','WAITING_SETUP','WAITING_SERVER',...terminal].includes(s.state),'JOB_STATE_INVALID');
  let q;try{q=await read(dir,'request.json');}catch(e){if(e.code!=='ENOENT')throw e;}
  if(q?.managed){const {reconcileJob}=await import('./reconcile.mjs');const updated=await reconcileJob({root,jobId});return updated.busy?s:updated;}
  if(!terminal.has(s.state)&&(Date.now()-s.updated_at_ms>5000||Date.now()-s.created_at_ms>s.timeout_ms+15000))return {...s,state:'STALE',error:{code:'JOB_OUTCOME_UNKNOWN'}};
@@ -21,12 +21,12 @@ export async function status({root,jobId}){
 }
 export async function result(options){const s=await status(options);if(!terminal.has(s.state))return {...s,result:null};const dir=await directory(options.root,options.jobId),v=await read(dir,'result.json');check(v.result.state===s.state,'JOB_RESULT_INVALID');const request=await read(dir,'request.json');validateTask(request.task);if(v.result.result)validateResult(v.result.result,request.task);return {...s,...v};}
 export async function cancel(options){const managed=await managedIntent(options,'cancel');if(managed)return managed;const s=await status(options);if(s.state==='PAUSED')return cancelPaused(options);if(terminal.has(s.state))return s;const dir=await directory(options.root,options.jobId);try{const h=await fs.open(path.join(dir,'cancel'),'wx',0o600);await h.close();}catch(e){if(e.code!=='EEXIST')throw e;}return {...s,cancellation_requested:true};}
-export async function start({root,task,worker,executable,accessHome=os.homedir(),userHome=accessHome,timeoutMs=(task.profile.execution_seconds+60)*1000,fixture=false,access,managed=false,transport}){
+export async function start({root,task,worker,executable,accessHome=os.homedir(),userHome=accessHome,timeoutMs=(task.profile.execution_seconds+60)*1000,fixture=false,access,managed=false,transport,startupConsent=false}){
  validateTask(task);check(Number.isInteger(timeoutMs)&&timeoutMs>=100&&timeoutMs<=2147483647,'DEADLINE_INVALID');check(path.isAbsolute(executable)&&['codex','claude-code'].includes(worker),'WORKER_INVALID');check(!access||fixture,'FIXTURE_ACCESS_DENIED');
  try{await fs.mkdir(root,{recursive:true,mode:0o700});}catch(e){if(e.code!=='EEXIST')throw e;}await directory(root);
  const jobId=crypto.randomUUID(),dir=path.join(root,jobId);await fs.mkdir(dir,{mode:0o700});await fs.mkdir(path.join(dir,'tmp'),{mode:0o700});
  const s={job_id:jobId,task_id:task.task_id,state:'STARTING',created_at_ms:Date.now(),updated_at_ms:Date.now(),timeout_ms:timeoutMs};
- await write(dir,'state.json',s);await write(dir,'request.json',{task,worker,executable,accessHome,userHome,timeoutMs,fixture,managed,...(transport?{transport}:{}),...(access?{access}:{})});
+ await write(dir,'state.json',s);await write(dir,'request.json',{task,worker,executable,accessHome,userHome,timeoutMs,fixture,managed,startupConsent,...(transport?{transport}:{}),...(access?{access}:{})});
  return launch(root,jobId,dir);
 }
 export async function launch(root,jobId,dir){
