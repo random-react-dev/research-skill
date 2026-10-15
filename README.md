@@ -9,7 +9,7 @@ separate background worker and retrieves the cited result. Ordinary agent
 configuration stays unchanged. The main agent still uses its own coordination
 tokens. Coverage can be partial; source access and service budgets are finite.
 
-## Release 0.4.0
+## Release 0.4.1
 
 New jobs connect the native worker directly to the gateway's HTTP MCP. They use
 managed execution and require explicit server admission. There is no silent
@@ -40,9 +40,12 @@ fixtures passed with Codex 0.133.0, Codex 0.147.0 and Claude Code 2.1.294.
 Both current native CLIs also retrieved their task-bound status through the live
 public gateway using a fixture model, with no paid model calls.
 
-Full live research with the new direct transport has not yet been run. The
-previous release has live provider and Mac reboot evidence, but that does not
-qualify this release's complete research or physical reboot behavior. Recovery,
+A live Codex job submitted successfully and returned a cited PARTIAL report
+with truncated source coverage. A live Claude job exposed post-submission polling
+and exhausted its six-request allowance with an unknown outcome. The client now
+ends the worker locally after confirmed submission; both native-worker fixtures
+verify this handoff without another paid turn. A new paid Claude run and physical
+reboot test of this exact release remain outstanding. Recovery,
 Stop, stale-runner and installation fixtures passed. Windows is not qualified.
 
 
