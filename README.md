@@ -42,7 +42,7 @@ public gateway using a fixture model, with no paid model calls.
 
 A live Codex job submitted successfully and returned a cited PARTIAL report
 with truncated source coverage. A live Claude job exposed post-submission polling
-and exhausted its six-request allowance with an unknown outcome. The client now
+and ended with an unknown outcome after five model requests. The client now
 ends the worker locally after confirmed submission; both native-worker fixtures
 verify this handoff without another paid turn. A new paid Claude run and physical
 reboot test of this exact release remain outstanding. Recovery,
