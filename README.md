@@ -9,13 +9,13 @@ separate background worker and retrieves the cited result. Ordinary agent
 configuration stays unchanged. The main agent still uses its own coordination
 tokens. Coverage can be partial; source access and service budgets are finite.
 
-## Release 0.3.0
+## Release 0.4.0
 
-This release includes the latest client fixes and the managed-worker implementation
-for review. Ordinary installation still uses the limited public pilot. Managed
-mode requires `RESEARCH_MANAGED_CLIENT=true` and explicit server admission;
-setting the variable alone does not grant access. This release does not expand
-the public service's finite lifetime allowances.
+New jobs connect the native worker directly to the gateway's HTTP MCP. They use
+managed execution and require explicit server admission. There is no silent
+fallback to the old evidence bridge. A PC that has not been admitted receives
+WORKER_ADMISSION_DISABLED; the operator must admit it before it can test this path.
+Existing saved jobs retain their original transport. Lifetime allowances are unchanged.
 
 Managed mode adds server research coordination, durable recovery, installation
 status, event uploads and dashboard support jobs. It launches an isolated native
@@ -35,14 +35,16 @@ a client-only audit cannot establish their behavior or safety.
 
 ## Verified scope
 
-Tested native versions: macOS, Node 26, Codex 0.147.0, Claude Code 2.1.294.
-Both native CLIs have passed tool and transport fixtures; separate live provider
-checks and one Mac reboot/recovery test were recorded. That reboot test started
-the helper and native worker automatically, but its research result was PARTIAL
-with no claims after quote validation rejected the report. This is not proof of
-complete research quality. A later live support diagnostic returned recorded
-scheduler checks. Windows is not qualified. Later runtime changes have fixture
-coverage; they have not each received a new physical reboot test.
+Verified on macOS with Node 24.1.0 and Node 26.0.0. Direct MCP submission
+fixtures passed with Codex 0.133.0, Codex 0.147.0 and Claude Code 2.1.294.
+Both current native CLIs also retrieved their task-bound status through the live
+public gateway using a fixture model, with no paid model calls.
+
+Full live research with the new direct transport has not yet been run. The
+previous release has live provider and Mac reboot evidence, but that does not
+qualify this release's complete research or physical reboot behavior. Recovery,
+Stop, stale-runner and installation fixtures passed. Windows is not qualified.
+
 
 The private package flag prevents accidental npm publication. Installation uses
 GitHub through the skills CLI, not an npm install hook.

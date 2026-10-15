@@ -8,9 +8,8 @@ description: Research a public web question in a separate background worker and 
 Resolve this installed skill's absolute directory as `SKILL_DIR`. In Claude Code,
 use `${CLAUDE_SKILL_DIR}`. Keep the main agent's ordinary configuration unchanged.
 
-1. Resolve the installed native CLI's absolute path. Choose `codex` for Codex or
-   `claude-code` for Claude Code. Check it with:
-   `node SKILL_DIR/scripts/run-research.mjs check WORKER ABSOLUTE_CLI_PATH`.
+1. Resolve the current agent's native CLI absolute path: `codex` when running
+   in Codex, or `claude-code` when running in Claude Code.
 2. Send `{ "question": "the user's public research question" }` on stdin to:
    `node SKILL_DIR/scripts/run-research.mjs start WORKER ABSOLUTE_CLI_PATH`.
    Use structured stdin or a private input file; do not interpolate the question

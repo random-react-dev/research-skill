@@ -18,7 +18,7 @@ try{
   const access=request.access??await serviceAccess(request.accessHome);
   const {installationReporter}=await import('./installation.mjs');reporter=installationReporter({accessHome:request.accessHome,worker:request.worker,access,fixture:request.fixture});reporter.start();
   logUpstream=mcpClient({...access,managed:true,fixture:request.fixture,signal:AbortSignal.timeout(10000)});
-  run=runCoordinator;extra={home:path.join(dir,'profile'),upstream:mcpClient({...access,managed:true,fixture:request.fixture,signal:control.signal})};
+  run=runCoordinator;extra={access,home:path.join(dir,'profile'),upstream:mcpClient({...access,managed:true,fixture:request.fixture,signal:control.signal})};
  }
  const output=await run({...request,...extra,signal:control.signal,pauseRequested:()=>pauseRequested,onEvent:event=>{
   events.push({...event,observed_at_ms:Date.now()});log(event.event,event);if(event.event==='CLI_STARTED')log('NATIVE_WORKER_STARTED',{worker:request.worker});
@@ -29,7 +29,7 @@ try{
 }catch(error){
  const code=/^[A-Za-z_]{1,80}$/.test(error.code??error.message??'')?(error.code??error.message):'JOB_SUPERVISOR_FAILED';
  if(dir)log('RUNNER_FAILED',{code});clearInterval(poll);clearInterval(heartbeat);control.abort();await writing.catch(()=>{});
- if(dir&&state&&(!managed||release)){const completed_at_ms=Date.now();await write(dir,'result.json',{completed_at_ms,result:{state:'FAILED',error:{code:'JOB_SUPERVISOR_FAILED'}},events}).catch(()=>{});await write(dir,'state.json',{...state,state:'FAILED',updated_at_ms:completed_at_ms}).catch(()=>{});}
+ if(dir&&state&&(!managed||release)){const completed_at_ms=Date.now();await write(dir,'result.json',{completed_at_ms,result:{state:'FAILED',error:{code}},events}).catch(()=>{});await write(dir,'state.json',{...state,state:'FAILED',error:{code},updated_at_ms:completed_at_ms}).catch(()=>{});}
 }finally{
  if(reporter)await reporter.stop();
  await audit.catch(()=>{});if(logUpstream){const {flushEvents}=await import('./control.mjs');await flushEvents(logHome,logUpstream).catch(()=>{});}const owned=Boolean(release);if(release)await release();clearInterval(poll);clearInterval(heartbeat);if(process.connected)process.disconnect();

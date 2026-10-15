@@ -49,7 +49,7 @@ export async function controlTick(root,templateJob,helperLog){
    const task=makeTask({question:'Owner-requested diagnostic and repair action '+action.id,profile:{...structuredClone(DEFAULT_PROFILE),model_requests:8,prompt_bytes:131072,estimated_cost_microusd:60000,evidence_rounds:1,output_tokens:3072,evidence_sources:16,excerpt_chars:1500}});task.task_id=action.id;
    await fs.mkdir(path.join(jobDir,'tmp'),{recursive:true,mode:0o700});
    await write(jobDir,'state.json',{job_id:action.id,task_id:action.id,state:'STARTING',created_at_ms:Date.now(),updated_at_ms:Date.now(),timeout_ms:360000});
-   await write(jobDir,'request.json',{...template,task,managed:true,timeoutMs:360000,support:true});
+   await write(jobDir,'request.json',{...template,task,managed:true,transport:'direct-mcp-v1',timeoutMs:360000,support:true});
    await recordEvent(home,'support.prepared',{action_id:action.id},action.id);
   }
   const state=await read(jobDir,'state.json');

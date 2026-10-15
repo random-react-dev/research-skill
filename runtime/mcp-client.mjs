@@ -42,7 +42,7 @@ async function resolveServiceAccess(home,{endpoint=ENDPOINT,fixture=false,signal
  const temp=path.join(dir,'.grant-'+crypto.randomUUID());try{const h=await fs.open(temp,'wx',0o600);try{await h.writeFile(JSON.stringify({endpoint,token_sha256:tokenHash,...grant}));await h.sync();}finally{await h.close();}await fs.rename(temp,receiptFile);await syncDirectory(dir);}finally{await fs.rm(temp,{force:true});}
  return publicAccess(home,endpoint,token,grant.owner,fixture);
 }
-export function mcpClient({endpoint,token,resolveAccess,signal,fixture=false,onEvent=()=>{},managed=false}){
+export function mcpClient({endpoint,token,resolveAccess,signal,fixture=false,onEvent=()=>{},managed=false,requiredTool}){
  const u=new URL(endpoint);check(endpoint===ENDPOINT||(fixture&&u.protocol==='http:'&&u.hostname==='127.0.0.1'&&u.pathname==='/mcp'),'ENDPOINT_DENIED');
  const tool=managed?'research_managed_request':'research_worker_request',limit=managed?270336:MAX_REQUEST;
  let id=0,session,version,initialized;
@@ -63,15 +63,17 @@ export function mcpClient({endpoint,token,resolveAccess,signal,fixture=false,onE
  async function init(){
   const v=await rpc('initialize',{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'research-task-client',version:'0.1.0'}});
   check(['2025-11-25','2025-06-18','2025-03-26','2024-11-05'].includes(v.protocolVersion)&&v.capabilities?.tools,'MCP_PROTOCOL_UNSUPPORTED');version=v.protocolVersion;
-  await rpc('notifications/initialized',undefined,true);const list=await rpc('tools/list');check(list.tools?.some(t=>t.name===tool),'WORKER_CONTRACT_UNAVAILABLE');
+  await rpc('notifications/initialized',undefined,true);const list=await rpc('tools/list');check(list.tools?.some(t=>t.name===(requiredTool??tool)),'WORKER_CONTRACT_UNAVAILABLE');
  }
- return async request=>{
+ const call=async request=>{
   initialized??=init();await initialized;check(Buffer.byteLength(JSON.stringify(request))<=limit,'REQUEST_LIMIT');
   onEvent({event:'SERVER_OPERATION',operation:request.operation,turn:request.turn});
   const v=await rpc('tools/call',{name:tool,arguments:{request}});
   check(!v.isError&&v.structuredContent&&typeof v.structuredContent==='object','MCP_TOOL_INVALID');
-  check(v.structuredContent.error_code===undefined,'SERVER_REQUEST_DENIED');
+  if(v.structuredContent.error_code!==undefined)throw new ResearchError(['worker_admission_disabled','coordinator_expired','coordinator_stale'].includes(v.structuredContent.error_code)?v.structuredContent.error_code.toUpperCase():'SERVER_REQUEST_DENIED');
   check(!v.structuredContent.operation_pending,'SERVER_OPERATION_PENDING');
   return v.structuredContent;
  };
+ call.discover=async()=>{initialized??=init();await initialized;};
+ return call;
 }

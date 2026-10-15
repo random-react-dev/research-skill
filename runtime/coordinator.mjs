@@ -8,6 +8,7 @@ import {fileURLToPath} from 'node:url';
 import {check,MODEL,canonical,readBounded,readPrivate,validateTask} from './core.mjs';
 import {childEnvironment} from './launcher.mjs';
 import {write,read} from './jobs.mjs';
+import {mcpClient} from './mcp-client.mjs';
 import {respondNative} from './native.mjs';
 
 export function coordinatorLaunch({worker,executable,home,base,capability,mcpFile,session,newSession}){
@@ -18,8 +19,8 @@ export function coordinatorLaunch({worker,executable,home,base,capability,mcpFil
  return {env,args:['--print','--bare','--output-format','json','--model',MODEL,'--permission-mode','bypassPermissions','--setting-sources','','--settings','{"disableAllHooks":true,"disableClaudeAiConnectors":true}','--strict-mcp-config','--mcp-config',mcpFile,'--disable-slash-commands','--no-chrome',...(session?['--resume',session]:newSession?['--session-id',newSession]:[])]};
 }
 
-export async function runCoordinator({task,worker,executable,home,upstream,signal,onEvent=()=>{},pauseRequested=()=>false,accessHome,userHome}){
- check(process.platform==='darwin'&&Number(process.versions.node.split('.')[0])===26,'RUNTIME_UNQUALIFIED');
+export async function runCoordinator({task,worker,executable,home,upstream,signal,onEvent=()=>{},pauseRequested=()=>false,accessHome,userHome,transport,access,fixture=false}){
+ check(process.platform==='darwin','RUNTIME_UNQUALIFIED');
  validateTask(task);check(path.isAbsolute(home)&&path.isAbsolute(executable),'WORKER_INVALID');
  await fs.mkdir(home,{recursive:true,mode:0o700});
  const stat=await fs.lstat(home);check(!stat.isSymbolicLink()&&stat.uid===process.getuid()&&!(stat.mode&0o077),'PROFILE_UNSAFE');
@@ -28,17 +29,20 @@ export async function runCoordinator({task,worker,executable,home,upstream,signa
  const save=()=>{const snapshot=structuredClone(checkpoint);saving=saving.then(()=>write(home,'session.json',snapshot));return saving;};
  try{const saved=await read(home,'session.json',16384);check(saved.task_id===task.task_id&&saved.worker===worker,'SESSION_TASK_MISMATCH');check(!saved.pending_calls?.length,'LOCAL_ACTION_OUTCOME_UNKNOWN');check(!await workerStillRunning(saved),'LOCAL_WORKER_STILL_RUNNING');checkpoint=saved;session=saved.session;}catch(e){if(e.code!=='ENOENT')throw e;}
  // Durable admission happens before a CLI can spend or execute model-directed work.
+ const direct=transport==='direct-mcp-v1';
+ check(!transport||direct,'TRANSPORT_UNSUPPORTED');
+ if(direct){check(access?.endpoint&&access?.token,'MCP_ACCESS_MISSING');if(access.resolveAccess)access=await access.resolveAccess(signal);await mcpClient({...access,fixture,signal,managed:true,requiredTool:'research_task'}).discover();onEvent({event:'MCP_DISCOVERED',transport});}
  const rawUpstream=upstream,coordinator_id=crypto.randomUUID();
  const admission=await rawUpstream({task,operation:'admit'});
  upstream=q=>rawUpstream({...q,coordinator_id});
- await upstream({task,operation:'acquire'});
+ await upstream({task,operation:'acquire',...(direct?{transport}:{})});
  const capability=crypto.randomBytes(24).toString('hex');let child,exit,submitted,stopping=false,requests=0,busy=false;
  submitted=admission.submitted?admission:undefined;
  const relay=http.createServer(async(req,res)=>{
   try{
    check(req.headers.host===`127.0.0.1:${relay.address().port}`&&!req.headers.origin,'LOCAL_HOST_DENIED');
    const route=req.url?.replace(/\?beta=true$/,'');
-   check(req.method==='POST'&&[`/${capability}/job`,`/${capability}/v1/${worker==='codex'?'responses':'messages'}`].includes(route),'LOCAL_ROUTE_DENIED');
+   check(req.method==='POST'&&[...(!direct?[`/${capability}/job`]:[]),`/${capability}/v1/${worker==='codex'?'responses':'messages'}`].includes(route),'LOCAL_ROUTE_DENIED');
    check(++requests<=task.profile.model_requests*8+32,'LOCAL_REQUEST_LIMIT');
    const body=JSON.parse(await readBounded(req,262144));
    if(route.endsWith('/job')){
@@ -55,6 +59,7 @@ export async function runCoordinator({task,worker,executable,home,upstream,signa
    busy=true;
    try{
     check(!pauseRequested()&&!signal?.aborted,'COORDINATOR_STOPPED');
+    if(direct){check(hasResearchTask(body.tools),'MCP_TOOL_MISSING');const remote=await upstream({task,operation:'status'});if(remote.submitted||remote.support_complete)submitted=remote;}
     checkpoint.pending_calls=(checkpoint.pending_calls??[]).filter(id=>!hasToolResult(body,id));await save();
     const request_id=crypto.createHash('sha256').update(canonical({worker,body})).digest('hex');
     const reply=submitted?.support_complete?{worker,response:worker==='codex'?{model:MODEL,id:'support_complete',object:'response',status:'completed',output:[{id:'support_final',status:'completed',type:'message',role:'assistant',content:[{type:'output_text',text:'Support result recorded.',annotations:[]}]}],usage:{input_tokens:0,output_tokens:0}}:{model:MODEL,id:'support_complete',type:'message',role:'assistant',content:[{type:'text',text:'Support result recorded.'}],stop_reason:'end_turn',usage:{input_tokens:0,output_tokens:0}}}:await upstream({task,operation:'native-turn',worker,body,request_id});
@@ -70,15 +75,22 @@ export async function runCoordinator({task,worker,executable,home,upstream,signa
  try{
   await new Promise((r,j)=>{relay.once('error',j);relay.listen(0,'127.0.0.1',r);});
   const base=`http://127.0.0.1:${relay.address().port}/${capability}/v1`;
-  const toolFile=fileURLToPath(new URL('./job-mcp.mjs',import.meta.url));
-  const toolArgs=[toolFile,base.replace(/\/v1$/,'/job')],mcpFile=path.join(home,'mcp.json');
-  await fs.writeFile(mcpFile,JSON.stringify({mcpServers:{research:{command:process.execPath,args:toolArgs}}}),{mode:0o600});
-  const config=`model = "${MODEL}"\nmodel_provider = "research"\napproval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_search = "disabled"\n[model_providers.research]\nname = "Research"\nbase_url = ${JSON.stringify(base)}\nwire_api = "responses"\nrequires_openai_auth = false\nrequest_max_retries = 0\nstream_max_retries = 0\n[mcp_servers.research]\ncommand = ${JSON.stringify(process.execPath)}\nargs = ${JSON.stringify(toolArgs)}\nrequired = true\n`;
+  const mcpFile=path.join(home,'mcp.json');
+  let mcpConfig,serverConfig;
+  if(direct){({mcpConfig,serverConfig}=directMcpConfig(access,task.task_id,coordinator_id));}
+  else{
+   const toolArgs=[fileURLToPath(new URL('./job-mcp.mjs',import.meta.url)),base.replace(/\/v1$/,'/job')];
+   mcpConfig={mcpServers:{research:{command:process.execPath,args:toolArgs}}};
+   serverConfig=`command = ${JSON.stringify(process.execPath)}\nargs = ${JSON.stringify(toolArgs)}\n`;
+  }
+  await fs.writeFile(mcpFile,JSON.stringify(mcpConfig),{mode:0o600});
+  const config=`model = "${MODEL}"\nmodel_provider = "research"\napproval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_search = "disabled"\n[model_providers.research]\nname = "Research"\nbase_url = ${JSON.stringify(base)}\nwire_api = "responses"\nrequires_openai_auth = false\nrequest_max_retries = 0\nstream_max_retries = 0\n[mcp_servers.research]\n${serverConfig}required = true\nstartup_timeout_sec = 30\ntool_timeout_sec = 200\n`;
   await fs.writeFile(path.join(home,'codex/config.toml'),config,{mode:0o600});
   check(!signal?.aborted,'COORDINATOR_STOPPED');
   const newSession=worker==='claude-code'&&!session?crypto.randomUUID():undefined;
   if(newSession){session=newSession;checkpoint.session=session;}checkpoint.clean_exit=false;await save();
   const launch=coordinatorLaunch({worker,executable,home,base,capability,mcpFile,session:newSession?undefined:session,newSession});
+  if(direct)launch.env.RESEARCH_GATEWAY_TOKEN=access.token;
   child=spawn(executable,launch.args,{env:launch.env,cwd:path.join(home,'work'),detached:true,stdio:['pipe','pipe','pipe']});
   let stdout='',stderr='',lineBuffer='',size=0;
   const consume=line=>{try{const v=JSON.parse(line);if(worker==='codex'&&v.type==='thread.started'&&typeof v.thread_id==='string'){session=v.thread_id;checkpoint.session=session;save();}}catch{}};
@@ -89,6 +101,7 @@ export async function runCoordinator({task,worker,executable,home,upstream,signa
   timer=setTimeout(stop,Math.min(300000,task.profile.execution_seconds*1000));
   onEvent({event:'CLI_STARTED'});child.stdin.on('error',()=>{});child.stdin.end(JSON.stringify({task,runtime:{node:process.execPath,cli:fileURLToPath(new URL('../scripts/run-research.mjs',import.meta.url)),jobs_root:path.dirname(path.dirname(home)),job_id:path.basename(path.dirname(home)),user_home:userHome??accessHome??home}}));
   const exitCode=await exit;
+  if(direct&&!signal?.aborted){try{const remote=await upstream({task,operation:'status'});if(remote.submitted||remote.support_complete)submitted=remote;}catch(e){onEvent({event:'STATUS_UNCONFIRMED',code:e.code??'MCP_CONNECTION_FAILED'});}}
   onEvent({event:'CLI_EXIT',exit_code:exitCode,output:stdout.slice(-8000),stderr});
   for(const line of stdout.trim().split('\n')){try{const v=JSON.parse(line);const id=worker==='codex'&&v.type==='thread.started'?v.thread_id:worker==='claude-code'?v.session_id:null;if(typeof id==='string'&&/^[a-f0-9-]{36}$/.test(id))session=id;}catch{}}
   if(submitted&&newSession)session=newSession;
@@ -98,6 +111,7 @@ export async function runCoordinator({task,worker,executable,home,upstream,signa
  }finally{
   await saving.catch(()=>{});clearTimeout(timer);signal?.removeEventListener('abort',stop);stop();
   if(exit)await exit;clearTimeout(forceTimer);
+  if(direct)await fs.rm(path.join(home,'mcp.json'),{force:true});
   relay.closeAllConnections();await new Promise(r=>relay.close(r));
  }
 }
@@ -106,3 +120,10 @@ function hasToolResult(value,id){if(!value||typeof value!=='object')return false
 
 export async function processIdentity(pid){if(!Number.isSafeInteger(pid)||pid<1)return null;try{return (await promisify(execFile)('/bin/ps',['-p',String(pid),'-o','lstart='],{timeout:3000,maxBuffer:1024})).stdout.trim()||null;}catch(e){if(e.code===1)return null;throw Error('PROCESS_IDENTITY_UNAVAILABLE');}}
 export async function workerStillRunning(saved){if(!saved.worker_pid)return false;const identity=await processIdentity(saved.worker_pid);return Boolean(identity&&(!saved.worker_started||identity===saved.worker_started));}
+
+export function hasResearchTask(tools){return Array.isArray(tools)&&tools.some(t=>t.name==='research_task'||t.name?.endsWith('__research_task')||hasResearchTask(t.tools));}
+export function directMcpConfig(access,taskId,coordinatorId){
+ const headers={'X-Research-Task':taskId,'X-Research-Coordinator':coordinatorId};
+ return {mcpConfig:{mcpServers:{research:{type:'http',url:access.endpoint,headers:{...headers,Authorization:'Bearer '+access.token}}}},
+  serverConfig:`url = ${JSON.stringify(access.endpoint)}\nbearer_token_env_var = "RESEARCH_GATEWAY_TOKEN"\nenabled_tools = ["research_task"]\nhttp_headers = { "X-Research-Task" = ${JSON.stringify(taskId)}, "X-Research-Coordinator" = ${JSON.stringify(coordinatorId)} }\n`};
+}

@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import {serviceAccess,mcpClient} from './mcp-client.mjs';
-export const runtimeFacts=(worker)=>({platform:process.platform,arch:process.arch,node:process.versions.node,runtime:'managed-0.3.0',...(worker?{worker}:{})});
+export const runtimeFacts=(worker)=>({platform:process.platform,arch:process.arch,node:process.versions.node,runtime:'direct-mcp-0.4.0',...(worker?{worker}:{})});
 export function installationReporter({accessHome,worker,role='worker',access,fixture=false,send,intervalMs=30000}){
  const run_id=crypto.randomUUID();let seq=0,busy=false,stopped=false,timer,inflight;
  async function contact(state='active'){

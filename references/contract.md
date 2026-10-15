@@ -1,11 +1,18 @@
 # Client contract
 
-The following v1 details describe the default compatibility path. The opt-in
-managed implementation is selected with RESEARCH_MANAGED_CLIENT=true. It uses
-research_managed_request, durable native profiles, autonomous server research and
-separate coordinator reservations under the same task budget. Native requests
-carry the isolated worker conversation and tools; do not send confidential
-material as a public research question. The main agent configuration is unchanged.
+New starts use direct-mcp-v1: the native CLI connects to the existing HTTPS MCP
+endpoint with private per-worker configuration. research_task is bound to the
+admitted task and coordinator generation through HTTP headers and the existing
+authenticated installation. Model arguments cannot replace this context. The
+coordinator uses research_managed_request for admission, API relay and lifecycle.
+Direct tool discovery is checked before paid inference. Submission and support
+completion are reconciled from authoritative server state.
+
+Saved jobs without this transport field keep their previous implementation.
+Their v1 compatibility contract appears below. No global agent configuration is
+changed. Native requests carry the isolated worker conversation and tools;
+do not send confidential material as a public research question.
+
 The managed default profile is 24 hours, 20 model requests, 1 MiB prompt bytes,
 32 KiB report, 3072 output tokens per turn, and a 400000 microUSD estimated cost
 gate. These are requested ceilings, not a funding grant or guaranteed invoice cap.
