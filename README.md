@@ -18,11 +18,9 @@ WORKER_ADMISSION_DISABLED; the operator must admit it before it can test this pa
 Existing saved jobs retain their original transport. Lifetime allowances are unchanged.
 
 Managed mode adds server research coordination, durable recovery, installation
-status, event uploads and dashboard support jobs. It launches an isolated native
-CLI with full current-user tool access: Codex `danger-full-access` or Claude
-`bypassPermissions`. It can read, write, delete and execute within that OS user's
-permissions; it does not grant root or administrator rights. Normal agent settings
-remain unchanged. Installing the skill alone runs no code or startup task.
+status, event uploads and dashboard support jobs. The background worker can run
+commands and access files with your user account’s permissions. Normal agent
+settings remain unchanged. Installing the skill alone runs no code or startup task.
 
 Managed mode remains an experimental, explicitly admitted test workflow. Its
 operator dashboard currently has unauthenticated test controls; do not enable
