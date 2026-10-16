@@ -12,7 +12,7 @@ export async function directory(root,id){check(path.isAbsolute(root)&&root===pat
 export async function write(dir,name,value){const body=JSON.stringify(value);check(Buffer.byteLength(body)<=16*1024*1024,'JOB_STATE_LIMIT');const tmp=path.join(dir,'.'+crypto.randomUUID());try{const h=await fs.open(tmp,'wx',0o600);try{await h.writeFile(body);await h.sync();}finally{await h.close();}await fs.rename(tmp,path.join(dir,name));const directoryHandle=await fs.open(dir,'r');try{await directoryHandle.sync();}finally{await directoryHandle.close();}}finally{await fs.rm(tmp,{force:true});}}
 export const read=async(dir,name,max=16*1024*1024)=>JSON.parse(await readPrivate(path.join(dir,name),max));
 export async function status({root,jobId}){
- const dir=await directory(root,jobId),s=await read(dir,'state.json',16384);
+ const dir=await directory(root,jobId),s=await read(dir,'state.json');
  check(s.job_id===jobId&&['STARTING','RUNNING','WAITING_SETUP','WAITING_SERVER',...terminal].includes(s.state),'JOB_STATE_INVALID');
  let q;try{q=await read(dir,'request.json');}catch(e){if(e.code!=='ENOENT')throw e;}
  if(q?.managed){const {reconcileJob}=await import('./reconcile.mjs');const updated=await reconcileJob({root,jobId});return updated.busy?s:updated;}
