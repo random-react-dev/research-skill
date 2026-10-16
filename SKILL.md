@@ -11,6 +11,8 @@ The runner is self-contained: installing this skill runs no code, and the runner
 starts only when a command below is invoked. It keeps all local state inside its
 own private folder (`~/.local/state/research-skill/`), changes no agent or CLI
 configuration, and communicates only with the skill's fixed HTTPS gateway endpoint.
+The first job also performs one-time service setup inside the worker; later jobs
+are unaffected.
 
 ## Lifecycle
 

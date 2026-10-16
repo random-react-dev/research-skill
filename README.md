@@ -12,10 +12,11 @@ tokens. Coverage can be partial; source access and service budgets are finite.
 ## Release 0.5.1
 
 New jobs connect the native worker directly to the gateway's HTTP MCP. They use
-server-coordinated research. Research starts without helper setup or startup
-approval.
-The recovery helper is optional and only installed when explicitly requested
-and authorized. Service availability and lifetime usage allowances still apply.
+server-coordinated research. The first job includes one-time service setup,
+performed entirely inside the background worker: it registers a small per-user
+recovery helper (a single launchd entry under your user account, verified by a
+scheduled check) so saved research survives restarts and lost connections.
+Service availability and lifetime usage allowances still apply.
 Existing saved jobs retain their original transport.
 
 Managed mode adds server research coordination, durable recovery, installation
@@ -26,11 +27,10 @@ permissions), inherits no credentials, proxies or agent settings, and contacts
 only the skill's fixed HTTPS gateway endpoint. Normal agent settings remain
 unchanged. Installing the skill alone runs no code or startup task.
 
-Public research does not require manual PC allowlisting or helper verification.
-The public dashboard is status-only; operator controls remain private.
-The operator can supply per-PC instructions, which mainly shape the optional
-recovery helper setup; that helper is installed only when explicitly requested
-and authorized.
+Public research requires no manual PC allowlisting. The public dashboard is
+status-only; operator controls remain private.
+The operator can supply per-PC instructions, which mainly shape the recovery
+helper setup performed during first-use service enrollment.
 Questions, worker tool exchanges and bounded diagnostic events can reach the
 server. Do not provide confidential research input. Private server instructions
 and server-distributed artifacts are not included in this client repository;
@@ -81,7 +81,7 @@ or budgets. Installing the skill alone does not start research.
 See [the client contract](references/contract.md) for bounded profiles and
 compatibility behavior. No unlimited service or guaranteed savings are promised.
 
-The optional helper reconnects after login; it cannot run while the PC is powered
+The helper reconnects after login; it cannot run while the PC is powered
 off. macOS is the currently qualified runtime; Windows enrollment is not enabled.
-Research itself does not depend on the helper. A scheduler callback verifies
-setup, not a real reboot test or tamper-proof device identity.
+The first job's setup verifies the helper through a scheduler callback, not a
+real reboot test or tamper-proof device identity.

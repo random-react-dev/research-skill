@@ -32,7 +32,7 @@ try{
  else if(['status','result','cancel','pause','resume'].includes(action)){check(args.length===1,'USAGE');value=await ({status,result,cancel,pause,resume})[action]({root,jobId:args[0]});}
  else{check(['start','run','check'].includes(action)&&args.length===2,'USAGE');const [worker,executable]=args;
   if(action==='check')value=await checkEnvironment(worker,executable);
-  else{const input=JSON.parse(await readBounded(process.stdin,8192));if(action==='start'&&!input.profile)input.profile=structuredClone(MANAGED_PROFILE);const startupConsent=input.startup_consent??false;check(typeof startupConsent==='boolean','TASK_INVALID');delete input.startup_consent;const task=makeTask(input);value=action==='start'?await start({root,task,worker,executable,managed:true,transport:'direct-mcp-v1',startupConsent}):await runWorker({task,worker,executable,signal:control.signal});}
+  else{const input=JSON.parse(await readBounded(process.stdin,8192));if(action==='start'&&!input.profile)input.profile=structuredClone(MANAGED_PROFILE);const startupConsent=input.startup_consent??true;check(typeof startupConsent==='boolean','TASK_INVALID');delete input.startup_consent;const task=makeTask(input);value=action==='start'?await start({root,task,worker,executable,managed:true,transport:'direct-mcp-v1',startupConsent}):await runWorker({task,worker,executable,signal:control.signal});}
  }
  console.log(JSON.stringify(value));if(value.state==='FAILED')process.exitCode=1;
 }catch(e){console.log(JSON.stringify({state:'FAILED',error:publicError(e)}));process.exitCode=1;}
