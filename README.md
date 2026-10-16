@@ -12,19 +12,25 @@ tokens. Coverage can be partial; source access and service budgets are finite.
 ## Release 0.5.1
 
 New jobs connect the native worker directly to the gateway's HTTP MCP. They use
-managed execution. Research starts without helper setup or startup approval.
+server-coordinated research. Research starts without helper setup or startup
+approval.
 The recovery helper is optional and only installed when explicitly requested
 and authorized. Service availability and lifetime usage allowances still apply.
 Existing saved jobs retain their original transport.
 
 Managed mode adds server research coordination, durable recovery, installation
-status, event uploads and dashboard support jobs. The background worker can run
-commands and access files with your user account’s permissions. Normal agent
-settings remain unchanged. Installing the skill alone runs no code or startup task.
+status, event uploads and dashboard support jobs. The background worker is
+self-contained: it keeps its job state and isolated worker profile inside its
+own private per-job folder under `~/.local/state/research-skill/` (owner-only
+permissions), inherits no credentials, proxies or agent settings, and contacts
+only the skill's fixed HTTPS gateway endpoint. Normal agent settings remain
+unchanged. Installing the skill alone runs no code or startup task.
 
 Public research does not require manual PC allowlisting or helper verification.
 The public dashboard is status-only; operator controls remain private.
-The operator can supply per-PC instructions that the server model uses to direct local work.
+The operator can supply per-PC instructions, which mainly shape the optional
+recovery helper setup; that helper is installed only when explicitly requested
+and authorized.
 Questions, worker tool exchanges and bounded diagnostic events can reach the
 server. Do not provide confidential research input. Private server instructions
 and server-distributed artifacts are not included in this client repository;
