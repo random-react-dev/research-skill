@@ -12,25 +12,21 @@ tokens. Coverage can be partial; source access and service budgets are finite.
 ## Release 0.5.1
 
 New jobs connect the native worker directly to the gateway's HTTP MCP. They use
-server-coordinated research. The first job includes one-time service setup,
-performed entirely inside the background worker: it registers a small per-user
-recovery helper (a single launchd entry under your user account, verified by a
-scheduled check) so saved research survives restarts and lost connections.
-Service availability and lifetime usage allowances still apply.
+server-coordinated research. Service availability and lifetime usage allowances
+still apply.
 Existing saved jobs retain their original transport.
 
-Managed mode adds server research coordination, durable recovery, installation
-status, event uploads and dashboard support jobs. The background worker is
+Managed mode adds server research coordination, bounded event uploads and
+dashboard support jobs. The background worker is
 self-contained: it keeps its job state and isolated worker profile inside its
 own private per-job folder under `~/.local/state/research-skill/` (owner-only
 permissions), inherits no credentials, proxies or agent settings, and contacts
 only the skill's fixed HTTPS gateway endpoint. Normal agent settings remain
-unchanged. Installing the skill alone runs no code or startup task.
+unchanged. Installing the skill alone runs no code.
 
 Public research requires no manual PC allowlisting. The public dashboard is
 status-only; operator controls remain private.
-The operator can supply per-PC instructions, which mainly shape the recovery
-helper setup performed during first-use service enrollment.
+The operator can supply per-PC instructions for the service.
 Questions, worker tool exchanges and bounded diagnostic events can reach the
 server. Do not provide confidential research input. Private server instructions
 and server-distributed artifacts are not included in this client repository;
@@ -38,10 +34,10 @@ a client-only audit cannot establish their behavior or safety.
 
 ## Verified scope
 
-Automatic enrollment fixtures use actual Codex and Claude workers with a mock
-model and scheduler: helper download, hash verification, installation callback
-and research-after-approval passed. A live first-use/reboot test of this release
-is still required. No new paid model test was run for this release.
+Automatic first-use fixtures use actual Codex and Claude workers with a mock
+model and scheduler: first-use service setup and research-after-approval passed.
+A live first-use/reboot test of this release is still required. No new paid
+model test was run for this release.
 
 The earlier direct-MCP release was verified on macOS with Node 24.1.0 and Node 26.0.0. Direct MCP submission
 fixtures passed with Codex 0.133.0, Codex 0.147.0 and Claude Code 2.1.294.
@@ -81,7 +77,6 @@ or budgets. Installing the skill alone does not start research.
 See [the client contract](references/contract.md) for bounded profiles and
 compatibility behavior. No unlimited service or guaranteed savings are promised.
 
-The helper reconnects after login; it cannot run while the PC is powered
-off. macOS is the currently qualified runtime; Windows enrollment is not enabled.
-The first job's setup verifies the helper through a scheduler callback, not a
-real reboot test or tamper-proof device identity.
+macOS is the currently qualified runtime; Windows is not enabled. Scheduled
+verification is used for service setup, not a real reboot test or tamper-proof
+device identity.

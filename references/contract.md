@@ -93,10 +93,8 @@ first uses share one capability. Unsafe/malformed state fails closed. A private 
 Retry or expired-grant renewal reuses identity; a revoked credential is never automatically replaced.
 Bootstrap replies are bounded to 4096 bytes. No account store or provider key is
 read, and no access operation occurs merely by installing the skill.
-The first public research job performs one-time service enrollment inside the
-worker with startup authorization recorded at admission; research submits after
-the scheduler receipt verifies the helper. Existing helper installations remain
-compatible. Usage budgets are not reset.
+Previously installed service components remain compatible. Usage budgets are
+not reset.
 Public dashboards expose status only; owner control remains private.
 See README for the current release and test limitations.
 
