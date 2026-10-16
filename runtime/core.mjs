@@ -11,7 +11,7 @@ export const keys=(v,expected)=>v&&typeof v==='object'&&!Array.isArray(v)&&Objec
 export const DEFAULT_PROFILE=Object.freeze({execution_seconds:300,model_requests:3,prompt_bytes:32768,report_bytes:32768,estimated_cost_microusd:20000,
  collection:{execution_seconds:180,resume_seconds:900,records:40,article_urls:1,bytes:1048576,request_seconds:90,retries:0,output_bytes:65536,
  requests:{web:2,article:1,x:1,video:1},pages:{web:2,article:1,x:1,video:1}}});
-export const MANAGED_PROFILE=Object.freeze({...structuredClone(DEFAULT_PROFILE),execution_seconds:86400,model_requests:20,prompt_bytes:1048576,estimated_cost_microusd:400000,evidence_rounds:6,output_tokens:3072,evidence_sources:16,excerpt_chars:1500});
+export const MANAGED_PROFILE=Object.freeze({...structuredClone(DEFAULT_PROFILE),execution_seconds:86400,model_requests:20,prompt_bytes:1048576,estimated_cost_microusd:400000,report_bytes:65536,evidence_rounds:6,output_tokens:3072,evidence_sources:32,excerpt_chars:1500,collection:{...structuredClone(DEFAULT_PROFILE.collection),requests:{...DEFAULT_PROFILE.collection.requests,x:30},pages:{...DEFAULT_PROFILE.collection.pages,x:4}}});
 export function validateTask(task){
  check(keys(task,['protocol_version','task_id','question','profile'])&&task.protocol_version===PROTOCOL&&uuid(task.task_id),'TASK_INVALID');
  check(typeof task.question==='string'&&task.question.trim()&&Buffer.byteLength(task.question)<=2048,'QUESTION_INVALID');

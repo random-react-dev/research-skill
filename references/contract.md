@@ -14,8 +14,8 @@ changed. Native requests carry the isolated worker conversation and tools;
 do not send confidential material as a public research question.
 
 The managed default profile is 24 hours, 20 model requests, 1 MiB prompt bytes,
-32 KiB report, 3072 output tokens per turn, and a 400000 microUSD estimated cost
-gate. These are requested ceilings, not a funding grant or guaranteed invoice cap.
+64 KiB report, 3072 output tokens per turn, and a 400000 microUSD estimated cost
+gate. X collection allows 30 counted physical requests and four result pages, including cold-start setup; at most 32 source excerpts are retained. These are requested ceilings, not a funding grant or guaranteed invoice cap.
 Server policy may deny them. Results preserve partial coverage and unknown usage.
 
 ## v1 compatibility boundaries
