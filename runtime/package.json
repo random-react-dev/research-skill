@@ -1,0 +1,13 @@
+{
+  "name": "research-skill",
+  "version": "0.5.7",
+  "private": true,
+  "type": "module",
+  "files": [
+    "SKILL.md",
+    "README.md",
+    "references",
+    "scripts",
+    "runtime"
+  ]
+}

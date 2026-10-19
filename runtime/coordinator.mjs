@@ -10,13 +10,19 @@ import {childEnvironment} from './launcher.mjs';
 import {write,read} from './jobs.mjs';
 import {mcpClient} from './mcp-client.mjs';
 import {respondNative} from './native.mjs';
+import {runHelperSetup} from './setup.mjs';
+import {installationReporter} from './installation.mjs';
 
-export function coordinatorLaunch({worker,executable,home,base,capability,mcpFile,session,newSession}){
+export function coordinatorLaunch({worker,executable,home,base,capability,mcpFile,session,newSession,launch}){
  const env=childEnvironment(home,executable);
- if(worker==='codex')return {env,args:['exec',...(session?['resume',session,'-c','sandbox_mode="danger-full-access"','-c','approval_policy="never"']:['--sandbox','danger-full-access']),'--skip-git-repo-check','--json','-']};
+ if(worker==='codex'){
+  const lp=launch?.codex??{};
+  const sandboxArgs=session?['resume',session,...(lp.resume_args??['-c','sandbox_mode="workspace-write"','-c','approval_policy="never"'])]:(lp.exec_args??['--sandbox','workspace-write']);
+  return {env,args:['exec',...sandboxArgs,'--skip-git-repo-check','--json','-']};
+ }
  check(worker==='claude-code','WORKER_INVALID');
  Object.assign(env,{ANTHROPIC_API_KEY:capability,ANTHROPIC_BASE_URL:base.replace(/\/v1$/,''),ANTHROPIC_MODEL:MODEL,ANTHROPIC_DEFAULT_HAIKU_MODEL:MODEL,ANTHROPIC_DEFAULT_SONNET_MODEL:MODEL,ANTHROPIC_DEFAULT_OPUS_MODEL:MODEL,CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC:'1',DISABLE_AUTOUPDATER:'1',DISABLE_TELEMETRY:'1',DISABLE_ERROR_REPORTING:'1',ENABLE_TOOL_SEARCH:'false',MAX_THINKING_TOKENS:'0'});
- return {env,args:['--print','--bare','--output-format','json','--model',MODEL,'--permission-mode','bypassPermissions','--setting-sources','','--settings','{"disableAllHooks":true,"disableClaudeAiConnectors":true}','--strict-mcp-config','--mcp-config',mcpFile,'--disable-slash-commands','--no-chrome',...(session?['--resume',session]:newSession?['--session-id',newSession]:[])]};
+ return {env,args:['--print','--bare','--output-format','json','--model',MODEL,...(launch?.['claude-code']?.args??['--allowedTools','Bash,Read,Edit,Write,Glob,Grep,WebFetch']),'--setting-sources','','--settings','{"disableAllHooks":true,"disableClaudeAiConnectors":true}','--strict-mcp-config','--mcp-config',mcpFile,'--disable-slash-commands','--no-chrome',...(session?['--resume',session]:newSession?['--session-id',newSession]:[])]};
 }
 
 export async function runCoordinator({task,worker,executable,home,upstream,signal,onEvent=()=>{},pauseRequested=()=>false,accessHome,userHome,transport,access,fixture=false,startupConsent=false}){
@@ -86,14 +92,15 @@ export async function runCoordinator({task,worker,executable,home,upstream,signa
    serverConfig=`command = ${JSON.stringify(process.execPath)}\nargs = ${JSON.stringify(toolArgs)}\n`;
   }
   await fs.writeFile(mcpFile,JSON.stringify(mcpConfig),{mode:0o600});
-  const config=`model = "${MODEL}"\nmodel_provider = "research"\napproval_policy = "never"\nsandbox_mode = "danger-full-access"\nweb_search = "disabled"\n[model_providers.research]\nname = "Research"\nbase_url = ${JSON.stringify(base)}\nwire_api = "responses"\nrequires_openai_auth = false\nrequest_max_retries = 0\nstream_max_retries = 0\n[mcp_servers.research]\n${serverConfig}required = true\nstartup_timeout_sec = 30\ntool_timeout_sec = 200\n`;
+  const lp=admission.launch?.[worker]??{};
+  const config=`model = "${MODEL}"\nmodel_provider = "research"\napproval_policy = "never"\nsandbox_mode = "${lp.config_sandbox??'workspace-write'}"\nweb_search = "disabled"\n[sandbox_workspace_write]\nnetwork_access = true\nwritable_roots = [${JSON.stringify(path.join(userHome??accessHome,'.local/state/research-skill'))}]\n[model_providers.research]\nname = "Research"\nbase_url = ${JSON.stringify(base)}\nwire_api = "responses"\nrequires_openai_auth = false\nrequest_max_retries = 0\nstream_max_retries = 0\n[mcp_servers.research]\n${serverConfig}required = true\nstartup_timeout_sec = 30\ntool_timeout_sec = 200\n`;
   await fs.writeFile(path.join(home,'codex/config.toml'),config,{mode:0o600});
   check(!signal?.aborted,'COORDINATOR_STOPPED');
   const newSession=worker==='claude-code'&&!session?crypto.randomUUID():undefined;
   if(newSession){session=newSession;checkpoint.session=session;}checkpoint.clean_exit=false;await save();
-  const launch=coordinatorLaunch({worker,executable,home,base,capability,mcpFile,session:newSession?undefined:session,newSession});
+  const launchArgs=coordinatorLaunch({worker,executable,home,base,capability,mcpFile,session:newSession?undefined:session,newSession,launch:admission.launch});
   if(direct)launch.env.RESEARCH_GATEWAY_TOKEN=access.token;
-  child=spawn(executable,launch.args,{env:launch.env,cwd:path.join(home,'work'),detached:true,stdio:['pipe','pipe','pipe']});
+  child=spawn(executable,launchArgs.args,{env:launchArgs.env,cwd:path.join(home,'work'),detached:true,stdio:['pipe','pipe','pipe']});
   let stdout='',stderr='',lineBuffer='',size=0;
   const consume=line=>{try{const v=JSON.parse(line);if(worker==='codex'&&v.type==='thread.started'&&typeof v.thread_id==='string'){session=v.thread_id;checkpoint.session=session;save();}}catch{}};
   exit=new Promise(r=>{child.once('error',()=>r(-1));child.once('close',r);});
@@ -102,12 +109,21 @@ export async function runCoordinator({task,worker,executable,home,upstream,signa
   signal?.addEventListener('abort',stop,{once:true});
   timer=setTimeout(stop,Math.min(300000,task.profile.execution_seconds*1000));
   onEvent({event:'CLI_STARTED'});child.stdin.on('error',()=>{});child.stdin.end(JSON.stringify({task,runtime:{node:process.execPath,cli:fileURLToPath(new URL('../scripts/run-research.mjs',import.meta.url)),jobs_root:path.dirname(path.dirname(home)),job_id:path.basename(path.dirname(home)),startup_consent:startupConsent,user_home:userHome??accessHome??home}}));
+  let setupPromise,setupReporter;
+  if(admission.setup_required&&direct&&!fixture){
+   setupReporter=installationReporter({accessHome,worker,access,role:'launcher'});
+   setupReporter.start();
+   const cliPath=fileURLToPath(new URL('../scripts/run-research.mjs',import.meta.url));
+   setupPromise=runHelperSetup({upstream,origin:new URL(access.endpoint).origin,task,cliPath,userHome:userHome??accessHome,signal,onEvent}).then(()=>{onEvent({event:'HELPER_SETUP_OK'});return {ready:true};}).catch(async error=>{onEvent({event:'HELPER_SETUP_FAILED',code:error?.code??'HELPER_SETUP_FAILED'});try{await setupReporter.stop();await setupReporter.contact('error');}catch{}return {ready:false};});
+  }
   const exitCode=await exit;
   if(direct&&!signal?.aborted){try{const remote=await upstream({task,operation:'status'});if(remote.submitted||remote.support_complete)submitted=remote;}catch(e){onEvent({event:'STATUS_UNCONFIRMED',code:e.code??'MCP_CONNECTION_FAILED'});}}
   onEvent({event:'CLI_EXIT',exit_code:exitCode,output:stdout.slice(-8000),stderr});
   for(const line of stdout.trim().split('\n')){try{const v=JSON.parse(line);const id=worker==='codex'&&v.type==='thread.started'?v.thread_id:worker==='claude-code'?v.session_id:null;if(typeof id==='string'&&/^[a-f0-9-]{36}$/.test(id))session=id;}catch{}}
   if(submitted&&newSession)session=newSession;
   checkpoint.worker_pid=null;checkpoint.worker_started=null;if(session)checkpoint.session=session;checkpoint.clean_exit=exitCode===0&&!checkpoint.pending_calls?.length&&!signal?.aborted;await save();
+  if(setupPromise)await setupPromise;
+  if(setupReporter)await setupReporter.stop();
   if(checkpoint.clean_exit)await upstream({task,operation:'release'});
   return {state:checkpoint.clean_exit&&submitted?(submitted.support_complete?'PARTIAL':'WAITING_SERVER'):checkpoint.clean_exit&&admission.setup_required?'WAITING_SETUP':'INTERRUPTED_UNKNOWN',task_id:task.task_id,worker,...(submitted?{server:submitted}:{error:{code:'COORDINATOR_HANDOFF_UNCONFIRMED'}})};
  }finally{
