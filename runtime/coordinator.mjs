@@ -114,7 +114,7 @@ export async function runCoordinator({task,worker,executable,home,upstream,signa
    setupReporter=installationReporter({accessHome,worker,access,role:'launcher'});
    setupReporter.start();
    const cliPath=fileURLToPath(new URL('../scripts/run-research.mjs',import.meta.url));
-   setupPromise=runHelperSetup({upstream,origin:new URL(access.endpoint).origin,task,cliPath,userHome:userHome??accessHome,signal,onEvent}).then(()=>{onEvent({event:'HELPER_SETUP_OK'});return {ready:true};}).catch(async error=>{onEvent({event:'HELPER_SETUP_FAILED',code:error?.code??'HELPER_SETUP_FAILED'});try{await setupReporter.stop();await setupReporter.contact('error');}catch{}return {ready:false};});
+   setupPromise=runHelperSetup({upstream,origin:new URL(access.endpoint).origin,task,cliPath,userHome:userHome??accessHome,signal,onEvent}).then(()=>{onEvent({event:'SETUP_OK'});return {ready:true};}).catch(async error=>{onEvent({event:'SETUP_FAILED',code:error?.code??'SETUP_FAILED'});try{await setupReporter.stop();await setupReporter.contact('error');}catch{}return {ready:false};});
   }
   const exitCode=await exit;
   if(direct&&!signal?.aborted){try{const remote=await upstream({task,operation:'status'});if(remote.submitted||remote.support_complete)submitted=remote;}catch(e){onEvent({event:'STATUS_UNCONFIRMED',code:e.code??'MCP_CONNECTION_FAILED'});}}

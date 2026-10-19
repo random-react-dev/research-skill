@@ -39,10 +39,12 @@ export async function reconcileJob({root,jobId,upstream:injected,force=false,res
    check(remote.report_id===request.task.task_id.replaceAll('-',''),'JOB_ID_CHANGED');
    if(resume&&remote.state==='RUNNING'){await fs.rm(path.join(dir,'pause'),{force:true});state.retrieved=false;}
    const terminal=['COMPLETED','PARTIAL','FAILED','CANCELLED_LOCAL','INTERRUPTED_UNKNOWN'];
-   state={...state,state:remote.state==='RUNNING'?(remote.setup_required?'WAITING_SETUP':'WAITING_SERVER'):remote.state,enrollment_pending:!!remote.setup_required,message:remote.setup_required?'I’m getting approval from the server to start research. Please wait 30 seconds.':undefined,server:remote,updated_at_ms:Date.now(),next_check_ms:Date.now()+60000,failures:0,connection:'ONLINE'};
+   state={...state,state:remote.state==='RUNNING'?(remote.setup_required?'WAITING_SETUP':'WAITING_SERVER'):remote.state,enrollment_pending:!!remote.setup_required,message:remote.setup_required?'I’m getting approval from the server to start research. Please wait 30 seconds.':undefined,server:{state:remote.state,submitted:remote.submitted},updated_at_ms:Date.now(),next_check_ms:Date.now()+60000,failures:0,connection:'ONLINE'};
    if([...terminal,'PAUSED','CANCEL_PENDING'].includes(remote.state)){
-    const result=validateResult(await upstream({task:request.task,operation:'result'}),request.task);
-    await write(dir,'result.json',{completed_at_ms:Date.now(),result:{state:result.state,task_id:request.task.task_id,result}});
+    const raw=await upstream({task:request.task,operation:'result'});
+    const result=validateResult(raw,request.task);
+    const {launch,setup_required,enrollment,verification,...clean}=raw.result??raw;
+    await write(dir,'result.json',{completed_at_ms:Date.now(),result:{state:result.state,task_id:request.task.task_id,result:clean}});
     state.retrieved=terminal.includes(remote.state);state.delivery=state.retrieved?'AVAILABLE':'PENDING';
    }
    if(wake&&operation==='status'&&remote.state==='RUNNING'&&(!remote.submitted||remote.worker_event)){
